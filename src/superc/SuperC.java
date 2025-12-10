@@ -973,21 +973,23 @@ public class SuperC extends Tool {
      
     // If specific line and macro requested, get macro values  
       Map<String, Object> additionalInfo = new HashMap<>();  
-      if (targetLine != null && targetMacro != null) {  
+      if (targetLine != null) {  
         // Get presence condition for the specific line  
         PresenceCondition linePC = getLinePresenceCondition(root, targetLine);  
-        System.out.print(linePC);
         if (linePC != null) {  
-            additionalInfo.put("linePresenceCondition", linePC.toSMT2().toString());  
+            additionalInfo.put("linePresenceCondition", linePC);  
             System.out.print("Oh yeah"+ macroTable.toString());
-            // Get macro values from MacroTable  
-            List<Entry> macroEntries = macroTable.get(targetMacro, presenceConditionManager);  
             List<Map<String, String>> macroValues = new ArrayList<>();  
-              
+
+            // Get macro values from MacroTable  
+            if (targetMacro !=null){
+            List<Entry> macroEntries = macroTable.get(targetMacro, presenceConditionManager);  
+            if (!(macroEntries == null)){
+
+            
             for (MacroTable.Entry entry : macroEntries) {  
                 Map<String, String> valueInfo = new HashMap<>();  
-                valueInfo.put("presenceCondition", entry.presenceCondition.toSMT2().toString());  
-                  
+                valueInfo.put("presenceCondition", entry.presenceCondition.toString());  
                 if (entry.macro.state == Macro.State.DEFINED) {  
                     if (entry.macro.isObject()) {  
                         // For object-like macros, get the replacement text  
@@ -1003,7 +1005,9 @@ public class SuperC extends Tool {
                     valueInfo.put("value", "undefined");  
                 }  
                 macroValues.add(valueInfo);  
-            }  
+            }
+            }
+            }
             additionalInfo.put("macroValues", macroValues);  
         }  
       }  
