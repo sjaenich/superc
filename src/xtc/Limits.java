@@ -45,7 +45,7 @@ public class Limits {
   // --------------------------------------------------------------------------
 
   /** The name and version of the operating system. */
-  public static final String OS = "Linux 5.4.0-65-generic";
+  public static final String OS = "Linux 6.10.14-linuxkit";
 
   /** The processor architecture. */
   public static final String ARCH = "amd64";
@@ -58,13 +58,13 @@ public class Limits {
 
   /** The C compiler version. */
   public static final String COMPILER_VERSION =
-    "7.5.0";
+    "13.3.0";
 
   /** The major C compiler version. */
-  public static final int COMPILER_VERSION_MAJOR = 7;
+  public static final int COMPILER_VERSION_MAJOR = 13;
 
   /** The minor C compiler version. */
-  public static final int COMPILER_VERSION_MINOR = 5;
+  public static final int COMPILER_VERSION_MINOR = 3;
 
   // --------------------------------------------------------------------------
 

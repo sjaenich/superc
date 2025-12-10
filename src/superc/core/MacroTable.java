@@ -406,9 +406,9 @@ public class MacroTable {
     List<Entry> all;
     List<Entry> valid;
     PresenceCondition presenceCondition;
-    
+    System.out.print("Presence Condtion Manager " + name); 
     if (! contains(name)) return null;
-    
+    System.out.print("Okay Version is not in");
     presenceCondition = presenceConditionManager.reference();
     
     all = table.get(name);
@@ -505,10 +505,10 @@ public class MacroTable {
   /** A macro definition */
   public static class Macro {
     /** The macro definition */
-    protected List<Syntax> definition;
+    public List<Syntax> definition;
     
     /** The state of the macro */
-    protected State state;
+    public State state;
     
     /** An undefined macro */
     public static Macro undefined = new Macro(State.UNDEFINED);
@@ -571,8 +571,8 @@ public class MacroTable {
 
   /** A macro table entry. */
   public static class Entry {
-    protected Macro macro;
-    protected PresenceCondition presenceCondition;
+    public Macro macro;
+    public PresenceCondition presenceCondition;
     
     public Entry(Macro macro, PresenceCondition presenceCondition) {
       this.macro = macro;

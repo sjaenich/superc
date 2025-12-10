@@ -262,7 +262,14 @@ public class Preprocessor implements Iterator<Syntax> {
     this.DEFINED = tokenCreator.createIdentifier("defined");
     this.EOF = new Syntax.EOF();
   }
-
+  
+  public PresenceConditionManager getPresenceConditionManager() {  
+    return presenceConditionManager;  
+  }
+  
+  public MacroTable getMacroTable() {  
+    return macroTable;  
+  } 
   /**
    * Turn preprocessor statistics collection on.  Default is off.
    *
@@ -380,10 +387,11 @@ public class Preprocessor implements Iterator<Syntax> {
     Syntax syntax = getNext();
 
     // System.err.println("getNext: " + syntax);
+    //System.out.print("MacroTable: " + this.macroTable.toString());
     // System.err.println("PASTE_LEFT: " + syntax.testFlag(PASTE_LEFT));
     // System.err.println("PREV_WHITE: " + syntax.testFlag(PREV_WHITE));
     // System.err.println("prescanning: " + prescanning);
-    // System.err.println("presenceCondition: " + presenceConditionManager.reference());
+  //  System.err.println("presenceCondition: " + presenceConditionManager.reference());
 
     boolean isValid;
     if (EMPTY_INVALID_BRANCHES) {
@@ -400,7 +408,7 @@ public class Preprocessor implements Iterator<Syntax> {
     switch (syntax.kind()) {
     case LANGUAGE:
       Language<?> token = syntax.toLanguage();
-
+  //    System.err.println("Token " + token + " " + token.tag());
       if (EMPTY_INFEASIBLE_BRANCHES) {
         if (presenceConditionManager.isFalse()) {
           return EMPTY;

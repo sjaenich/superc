@@ -48,6 +48,8 @@ import superc.core.LexerCreator;
 import superc.core.TokenCreator;
 import superc.core.HeaderFileManager;
 import superc.core.MacroTable;
+import superc.core.MacroTable.Entry;  
+import superc.core.MacroTable.Macro;
 import superc.core.ExpressionParser;
 import superc.core.ConditionEvaluator;
 import superc.core.StopWatch;
@@ -75,7 +77,7 @@ import superc.core.Syntax.Directive;
 import superc.core.Syntax.Conditional;
 import superc.core.Syntax.Error;
 import superc.core.Syntax.ErrorType;
-
+import superc.core.Syntax.ConditionalBlock;
 import superc.expression.ExpressionRats;
 
 import superc.cparser.CParseTables;
@@ -366,7 +368,8 @@ public class SuperC extends Tool {
       "By default, SuperC performs all optimizations besides " +
       "platoffOrdering.  If one or more " +
       "individual optimizations are specified as command line flags, all " +
-      "other optimizations are automatically disabled.";
+      "AND ICAN EDIT STUFFother optimizations are automatically disabled.";
+        
   }
 
   public void init() {
@@ -562,7 +565,7 @@ public class SuperC extends Tool {
            "Show the macro symbol table.").
       word("sourcelinePC", "sourcelinePC", false,
             "Prints presence conditions as a list of conditional block groups "
-            + "to the specified file.")
+            + "to the specified file.  Format: file[:line[:macro]]")
       ;
   }
   
@@ -904,7 +907,6 @@ public class SuperC extends Tool {
                                     presenceConditionManager,
                                     conditionEvaluator,
                                     tokenCreator);
-    
     ((Preprocessor) preprocessor)
       .collectStatistics(runtime.test("statisticsPreprocessor"));
     ((Preprocessor) preprocessor)
@@ -929,50 +931,112 @@ public class SuperC extends Tool {
 
     // Run SuperC.
     if (null != runtime.getString("sourcelinePC")) {
-      // TODO: currently, we get pc using preprocessor only, which misses some common patterns like if(IS_ENABLED(CONFIG_MACRO)).
-      String outputPath = runtime.getString("sourcelinePC");
+      String outputPath = runtime.getString("sourcelinePC");  
 
-      //
-      // Get presence condition tree
-      //
-      List<List<ConditionalBlock>> cbGroups = ConditionalBlock.getConditionalBlockGroups((Preprocessor)preprocessor, file.getAbsolutePath());
 
-      //
-      // Wrap the presence condition tree with the dummy root
-      //
-      // Count the number of lines
-      Scanner sc = new Scanner(file);
-      int lineCount = 0;
-      while(sc.hasNextLine() ) {
-        lineCount++;
-        sc.nextLine();
-      } 
-      sc.close();
-      // Create the dummy root
-      ConditionalBlock root = new ConditionalBlock();
-      root.startLine = 0;
-      root.endLine = lineCount + 1;
-      root.subBlocks = cbGroups;
-      for(List<ConditionalBlock> cbGroup : cbGroups) {
-        for(ConditionalBlock cb : cbGroup) {
-          cb.parent = root;
-        }
-      }
-      root.pc = presenceConditionManager.newTrue();
-      root.parent = null;
+    // Parse additional parameters: file[:line[:macro]]  
+      String[] parts = outputPath.split(":");  
+      String actualOutputPath = parts[0];  
+      Integer targetLine = parts.length > 1 ? Integer.parseInt(parts[1]) : null;  
+      String targetMacro = parts.length > 2 ? parts[2] : null;  
+    // Get presence condition tree  
+      List<List<ConditionalBlock>> cbGroups =   
+          ConditionalBlock.getConditionalBlockGroups((Preprocessor)preprocessor,   
+                                                  file.getAbsolutePath());  
+      
+    // Count lines for root creation  
+      Scanner sc = new Scanner(file);  
+      int lineCount = 0;  
+      while(sc.hasNextLine()) {  
+          lineCount++;  
+          sc.nextLine();  
+      }   
+      sc.close();  
+      
+    // Create the dummy root  
+      ConditionalBlock root = new ConditionalBlock();  
+      root.startLine = 0;  
+      root.endLine = lineCount + 1;  
+      root.subBlocks = cbGroups;  
+      for(List<ConditionalBlock> cbGroup : cbGroups) {  
+          for(ConditionalBlock cb : cbGroup) {  
+              cb.parent = root;  
+          }  
+      }  
+      root.pc = presenceConditionManager.newTrue();  
+      root.parent = null;  
+      Syntax syntax;
+      do {  
+        syntax = preprocessor.next();  
+      } while (syntax.kind() != Kind.EOF);
 
-      //
-      // Write output
-      //
-      System.err.println("Writing the presence conditions to \"" + outputPath  + "\".");
-      try {
-        FileWriter fr = new FileWriter(outputPath);
-        fr.write(root.toString());
-        fr.close();
-      } catch(Exception e) {
-        System.err.println("Exception while writing file: " + e);
-      }
-    } else if (runtime.test("follow-set")) {
+     
+    // If specific line and macro requested, get macro values  
+      Map<String, Object> additionalInfo = new HashMap<>();  
+      if (targetLine != null && targetMacro != null) {  
+        // Get presence condition for the specific line  
+        PresenceCondition linePC = getLinePresenceCondition(root, targetLine);  
+        System.out.print(linePC);
+        if (linePC != null) {  
+            additionalInfo.put("linePresenceCondition", linePC.toSMT2().toString());  
+            System.out.print("Oh yeah"+ macroTable.toString());
+            // Get macro values from MacroTable  
+            List<Entry> macroEntries = macroTable.get(targetMacro, presenceConditionManager);  
+            List<Map<String, String>> macroValues = new ArrayList<>();  
+              
+            for (MacroTable.Entry entry : macroEntries) {  
+                Map<String, String> valueInfo = new HashMap<>();  
+                valueInfo.put("presenceCondition", entry.presenceCondition.toSMT2().toString());  
+                  
+                if (entry.macro.state == Macro.State.DEFINED) {  
+                    if (entry.macro.isObject()) {  
+                        // For object-like macros, get the replacement text  
+                        StringBuilder replacement = new StringBuilder();  
+                        for (Syntax token : entry.macro.definition) {  
+                            replacement.append(token.getTokenText());  
+                        }  
+                        valueInfo.put("value", replacement.toString());  
+                    } else {  
+                        valueInfo.put("value", "function-like macro");  
+                    }  
+                } else {  
+                    valueInfo.put("value", "undefined");  
+                }  
+                macroValues.add(valueInfo);  
+            }  
+            additionalInfo.put("macroValues", macroValues);  
+        }  
+      }  
+      
+    // Write output  
+      System.err.println("Writing the presence conditions to \"" + actualOutputPath + "\".");  
+      try {  
+          FileWriter fr = new FileWriter(actualOutputPath);  
+          
+        // Write the conditional block tree  
+          fr.write(root.toString());  
+          
+        // Write additional info if requested  
+          if (!additionalInfo.isEmpty()) {  
+              fr.write("\n\n=== Additional Information ===\n");  
+              fr.write("Line " + targetLine + " Presence Condition: " +   
+                     additionalInfo.get("linePresenceCondition") + "\n");  
+              fr.write("Macro '" + targetMacro + "' Values:\n");  
+              
+              @SuppressWarnings("unchecked")  
+              List<Map<String, String>> values =   
+                  (List<Map<String, String>>) additionalInfo.get("macroValues");  
+              for (Map<String, String> value : values) {  
+                  fr.write("  Under condition " + value.get("presenceCondition") +   
+                          ": " + value.get("value") + "\n");  
+              }  
+          }  
+          
+          fr.close();  
+      } catch(Exception e) {  
+          System.err.println("Exception while writing file: " + e);  
+      }   
+   } else if (runtime.test("follow-set")) {
       // Compute the follow-set of each token of the preprocessed
       // input.
 
@@ -1078,12 +1142,11 @@ public class SuperC extends Tool {
       // Run the SuperC preprocessor only.
       Syntax syntax;
       boolean seenNewline = true;
-      
+      int lineno = 0;
       syntax = preprocessor.next();
 
       LinkedList<PresenceCondition> parents
         = new LinkedList<PresenceCondition>();
-
       parents.push(presenceConditionManager.newTrue());
       while (syntax.kind() != Kind.EOF) {
         if (! runtime.test("statisticsPreprocessor")
@@ -1111,36 +1174,8 @@ public class SuperC extends Tool {
             } else {
               System.out.print(" ");
             }
-
-            // if (SIMPLIFY_NESTED_CONDITIONALS
-            //     && syntax.kind() == Kind.CONDITIONAL) {
-            //   switch (syntax.toConditional().tag()) {
-            //   case START:
-            //     PresenceCondition restrict1 = syntax.toConditional()
-            //       .presenceCondition.simplify(parents.peek());
-            //     parents.push(syntax.toConditional().presenceCondition.addRef());
-            //     System.out.print(new Conditional(ConditionalTag.START,
-            //                                      restrict1));
-            //     break;
-
-            //   case NEXT:
-            //     parents.pop().delRef();
-            //     PresenceCondition restrict2 = syntax.toConditional()
-            //       .presenceCondition.simplify(parents.peek());
-            //     parents.push(syntax.toConditional().presenceCondition.addRef());
-            //     System.out.print(new Conditional(ConditionalTag.NEXT,
-            //                                      restrict2));
-            //     break;
-
-            //   case END:
-            //     parents.pop().delRef();
-            //     System.out.print(syntax);
-            //     break;
-            //   }
-            // } else {
-              System.out.print(syntax);
-            // }
-            
+//            System.out.print(syntax.getLocation());
+            System.out.print(syntax);
             // Keep track of whether we have seen a newline already.
             if (syntax.kind() == Kind.LAYOUT && ((Layout) syntax).hasNewline()
                 && syntax.getTokenText().endsWith("\n")) {
@@ -1154,13 +1189,11 @@ public class SuperC extends Tool {
             }
           }
         }
-        
         if (syntax.kind() == Kind.CONDITIONAL
             && ( syntax.toConditional().tag == ConditionalTag.START
                  || syntax.toConditional().tag == ConditionalTag.NEXT)) {
           syntax.toConditional().presenceCondition.delRef();
         }
-
         syntax = preprocessor.next();
       }
     // } else if (runtime.test("desugarer")) {
@@ -1168,7 +1201,6 @@ public class SuperC extends Tool {
       // Run the SuperC preprocessor and parser.
       ForkMergeParser parser;
       Object translationUnit;
-      
       // Only pass ordinary tokens and conditionals to the parser.
       preprocessor = new TokenFilter(preprocessor, runtime.test("keepErrors"));
 
@@ -1391,65 +1423,9 @@ public class SuperC extends Tool {
         translationUnit = tu;
       }
 
-      // if (runtime.test("printErrorConditions")) {
-      //   PresenceCondition restrictCond = presenceConditionManager.getRestrictCond(false);
-      //   if (null != printConstraints) {
-      //     for (PresenceCondition cond : printConstraints) {
-      //       PresenceCondition restricted = cond.restrict(restrictCond);
-      //       cond.delRef();
-      //       System.err.format("extra_constraint %s\n", restricted.toNotCNF());
-      //       restricted.delRef();
-      //     }
-      //   }
-      // }
-      // if (runtime.test("functionAnalysis")) {
-      //   PresenceCondition restrictCond = presenceConditionManager.getRestrictCond(false);
-        
-      //   Set<String> global_fundefs = initialParsingContext.getSymbolTable().getNames(STField.GLOBAL_FUNDEF);
-      //   Set<String> static_fundefs = initialParsingContext.getSymbolTable().getNames(STField.STATIC_FUNDEF);
-      //   Set<String> funcalls = actions.getFunctionTable().getNames(STField.FUNCALL);
-      //   for (String s : global_fundefs) {
-      //     // global fundef is negated ahead of time
-      //     PresenceCondition global_fundef_pc = initialParsingContext.symbolPresenceCond(s, STField.GLOBAL_FUNDEF);
-      //     PresenceCondition global_fundef_pc_restricted = global_fundef_pc.restrict(restrictCond);
-      //     System.err.println("global_fundef " + s + " " + global_fundef_pc_restricted.toNotCNF());
-      //     global_fundef_pc_restricted.delRef();
-      //   }
-      //   System.err.format("total_funcalls %d\n", funcalls.size());
-      //   // for (String s : funcalls) {
-      //   //   System.err.println("funcall " + s);
-      //   // }
-      //   funcalls.removeAll(global_fundefs);
-      //   funcalls.removeAll(static_fundefs);
-      //   for (String s : funcalls) {
-      //     PresenceCondition restricted = actions.getFunctionTable().getPresenceCond(s, STField.FUNCALL).restrict(restrictCond);
-      //     System.err.println("undef_funcall " + s + " " + restricted.toCNF());
-      //     restricted.delRef();
-      //   }
-      //   actions.getFunctionTable().delRef();
+           initialParsingContext.free();
 
-      //   restrictCond.delRef();
-      // }
-
-      initialParsingContext.free();
-
-      // if (runtime.test("checkAST")) {
-      //   FileReader ratsReader = new FileReader(file);
-      //   CParser ratsParser
-      //     = new CParser(ratsReader, file.toString(), (int)file.length());
-      //   Result  ratsResult = ratsParser.pTranslationUnit(0);
-      //   Node rats = (Node) ratsParser.value(ratsResult);
-      //   Node superc = (Node) translationUnit;
-
-      //   if (! TreeComparator.getInstance().traverse(superc, rats)) {
-      //     System.err.println("superc: " + superc);
-      //     System.err.println("rats:   " + rats);
-
-      //     throw new RuntimeException("C asts are different");
-      //   }
-      // }
-
-      if (runtime.test("printAST")) {
+           if (runtime.test("printAST")) {
         runtime.console().format((Node) translationUnit).pln().flush();
       }
 
@@ -1472,251 +1448,7 @@ public class SuperC extends Tool {
         
         writer.flush();
       }
-
-      // if (runtime.test("configureAllYes") || runtime.test("configureAllNo")) {
-      //   OutputStreamWriter writer = new OutputStreamWriter(System.out);
-      //   boolean defaultSetting = runtime.test("configureAllYes") ? true : false;
-      //   List<String> clExceptions = null != runtime.getString("configureExceptions") ?
-      //     Arrays.asList(runtime.getString("configureExceptions").split(",")) :
-      //     null;
       
-      //   List<String> exceptions = new LinkedList<String>();
-      //   Map<String, String> nonbooleans = new HashMap<String, String>();
-      //   ConditionEvaluator evaluator = null;
-      //   BDD configuration;
-
-      //   if (null != clExceptions) {
-      //     exceptions.addAll(clExceptions);
-      //   }
-
-      //   if (null != runtime.getString("configFile")) {
-      //     BufferedReader configFile =
-      //       new BufferedReader(new FileReader(runtime.getString("configFile")));
-      //     String line;
-
-      //     // Turn on the configuration variables from a linux .config
-      //     // file
-      //     while (null != (line = configFile.readLine())) {
-      //       if (line.length() == 0) continue;
-      //       if (line.startsWith("#")) continue;
-      //       if (line.endsWith("=y")) {  // boolean and tristate
-      //         String exception =
-      //           "(defined " + line.substring(0,line.length() - 2) + ")";
-      //         exceptions.add(exception);
-      //       } else { // non-boolean
-      //         String[] def = line.split("=");
-      //         String exception = "(defined " + def[0] + ")";
-      //         exceptions.add(exception);
-      //         nonbooleans.put(def[0], def[1]);
-      //       }
-      //     }
-      //   }
-
-      //   // PresenceCondition t = presenceConditionManager.newTrue();
-      //   // macroTable._define("CONFIG_64BIT", new MacroTable.Macro.Object(null), t);
-
-      //   // StringBuilder sb;
-      //   // String name = "BITS_PER_LONG";
-      //   // // String name = "CONFIG_64BIT";
-    
-      //   // sb = new StringBuilder();
-        
-      //   // sb.append(name);
-      //   // sb.append("\n");
-      //   // sb.append("-------------------------------------------");
-      //   // sb.append("\n");
-      //   // for (MacroTable.Entry e : macroTable.table.get(name)) {
-      //   //   sb.append(e);
-      //   //   sb.append("\n");
-      //   // }
-      //   // sb.append("\n");
-
-      //   // System.err.println(sb.toString());
-
-      //   if (null != nonbooleans) {
-      //     evaluator = new ConditionEvaluator(ExpressionParser.fromRats(),
-      //                                        presenceConditionManager,
-      //                                        macroTable);
-      //   }
-
-      //   configuration = presenceConditionManager.
-      //     createConfiguration(defaultSetting, exceptions);
-      //   System.err.println("Configure AST");
-
-      //   configureAST((Node) translationUnit, configuration, nonbooleans, writer);
-      //   configuration.free();
-
-      //   writer.flush();
-      // } else if (null != runtime.getString("configFile")) {
-      //   OutputStreamWriter writer = new OutputStreamWriter(System.out);
-      //   Map<String, String> nonbooleans = new HashMap<String, String>();
-      //   BufferedReader configFile =
-      //     new BufferedReader(new FileReader(runtime.getString("configFile")));
-      //   List<String> clExceptions = null != runtime.getString("configureExceptions") ?
-      //     Arrays.asList(runtime.getString("configureExceptions").split(",")) :
-      //     null;
-      //   PresenceCondition t =
-      //     presenceConditionManager.newTrue();
-      //   Iterator<String> clIterator = null != clExceptions ? clExceptions.iterator()
-      //     : null;
-      //   String line;
-      //   HashSet<String> configuredVars = new HashSet<String>();
-
-      //   // Put the config file definitions into the macro symbol table
-      //   while (null != (line = configFile.readLine()) ||
-      //          clIterator != null &&
-      //          clIterator.hasNext() &&
-      //          null != (line = clIterator.next())) {
-      //     if (line.length() == 0) {
-      //       continue;
-      //     } else if (line.startsWith("# ") && line.endsWith(" is not set")) {
-      //       String var_name = line.substring(2,line.length() - " is not set".length());
-      //       macroTable._define(var_name,
-      //                          MacroTable.Macro.undefined,
-      //                          t);
-      //       configuredVars.add(var_name);
-      //     } else if (line.startsWith("#")) { // ignore comments other than undefined config vars
-      //       continue;
-      //     } else if (line.endsWith("=y")) {  // store boolean and tristate config vars
-      //       String var_name = line.substring(0,line.length() - 2);
-      //       // if (var_name.equals("__KERNEL__")) System.err.println("before define " + macroTable.contains("__KERNEL__"));
-      //       macroTable._define(var_name,
-      //                          new MacroTable.Macro.Object(null),
-      //                          t);
-      //       configuredVars.add(var_name);
-      //       // if (var_name.equals("__KERNEL__")) System.err.println("after define " + macroTable.contains("__KERNEL__"));
-      //     } else { // store non-boolean config var defs
-      //       String[] def = line.split("=");
-      //       List<Syntax> def_list = new LinkedList<Syntax>();
-      //       final CLexer clexer;
-      //       Syntax syntax = null;
-
-      //       if (def.length > 1) {
-      //         clexer = new CLexer(new StringReader(def[1]));
-      //         clexer.setFileName("config file");
-
-      //         while (true) {
-      //           try {
-      //             syntax = clexer.yylex();
-      //           } catch (IOException e) {
-      //             e.printStackTrace();
-      //             throw new RuntimeException();
-      //           }
-      //           if (syntax.kind() == Kind.EOF) break;
-      //           def_list.add(syntax);
-      //         }
-      //         macroTable._define(def[0],
-      //                            new MacroTable.Macro.Object(def_list),
-      //                            t);
-      //         nonbooleans.put(def[0], def[1]);
-      //         configuredVars.add(def[0]);
-      //       } else {
-      //         // System.err.println("wrong " + line);
-      //       }
-      //     }
-      //   }
-
-      //   // Pull any other macros not defined in the config file to false
-      //   for (String var_name : macroTable.table.keySet()) {
-      //     if (! configuredVars.contains(var_name)) {
-      //       macroTable._define(var_name,
-      //                          MacroTable.Macro.undefined,
-      //                          t);
-      //     }
-      //   }
-
-      //   // StringBuilder sb;
-      //   // // String name = "__KERNEL__";
-      //   // // String name = "BITS_PER_LONG";
-      //   // // String name = "CONFIG_64BIT";
-      //   // // String name = "__CHECKER__";
-      //   // String name = "__section";
-    
-      //   // sb = new StringBuilder();
-        
-      //   // sb.append(name);
-      //   // sb.append("\n");
-      //   // sb.append("-------------------------------------------");
-      //   // sb.append("\n");
-      //   // for (MacroTable.Entry e : macroTable.table.get(name)) {
-      //   //   sb.append(e);
-      //   //   sb.append("\n");
-      //   // }
-      //   // sb.append("\n");
-
-      //   // System.err.println(sb.toString());
-
-      //   // Evaluate each BDD variable according to the Linux .config
-      //   // file settings.
-      //   BDD configuration = presenceConditionManager.newTrue().getBDD();
-      //   int var_idx = 0;
-      //   String var_name = null;
-
-      //   // conditionEvaluator.setPullUndefinedFalse(true);
-      //   while (null != (var_name = presenceConditionManager.getVariableManager().getName(var_idx++))) {
-      //     String var_cond = "#if " + var_name + "\n#else\n#endif\n";
-      //     // System.err.println(var_cond);
-      //     HeaderFileManager var_filemanager =
-      //       new HeaderFileManager(new StringReader(var_cond),
-      //                             new File(var_name),
-      //                             null, null, null, null, null);
-      //     // System.err.println("current: " + presenceConditionManager.reference().isTrue())
-      //       ;
-      //     Preprocessor var_evaluator =
-      //       new Preprocessor(var_filemanager,
-      //                        macroTable,
-      //                        presenceConditionManager,
-      //                        conditionEvaluator,
-      //                        tokenCreator);
-
-      //     Syntax syntax = var_evaluator.next();
-
-      //     if (syntax.kind() == Kind.CONDITIONAL) {
-      //       PresenceCondition presult = ((Conditional) syntax).presenceCondition();
-      //       // if (var_name.equals("(defined __KERNEL__)")) {
-      //       //   System.err.println("after configure " + var_name);
-      //       //   System.err.println("after configure " + var_cond);
-      //       //   System.err.println("after configure " + presult.toString());
-      //       // }
-      //       if (presult.isTrue()) {
-      //         configuration.andWith(presenceConditionManager.getVariableManager().getVariable(var_name));
-      //         // System.err.println("FJDSKL");
-      //       } else // if (presult.isFalse())
-      //         {
-      //         BDD ith = presenceConditionManager.getVariableManager().getVariable(var_name);
-      //         BDD not = ith.not();
-      //         ith.free();
-      //         configuration.andWith(not);
-      //         // System.err.println("noonononon");
-      //       } // else {
-      //       //   System.err.println("unresolved expression");
-      //       //   System.err.println(var_name + " " + presult.toString());
-      //       //   System.exit(1);
-      //       // }
-      //     } else {
-      //       System.err.println("handle incorrect evaluation");
-      //       System.exit(1);
-      //     }
-
-      //     while (syntax.kind() != Kind.EOF) syntax = var_evaluator.next();
-      //   }
-
-      //   // Evaluate each macro in the macro table until each is
-      //   // unconditionally defined.
-
-      //   // After parsing, replace identifiers, recursively evaluate if
-      //   // necessary
-
-      //   // // Evaluate each BDD it using the above evaluator
-      //   // BDD configuration = presenceConditionManager.evaluateBDDs(visitor);
-
-      //   System.err.println("Configure AST");
-      //   configureAST((Node) translationUnit, configuration, nonbooleans, writer);
-      //   configuration.free();
-
-      //   writer.flush();
-      // }
-
       if (runtime.test("statisticsParser")) {
         IdentityHashMap<Object, Integer> seen
           = new IdentityHashMap<Object, Integer>();
@@ -1793,6 +1525,39 @@ public class SuperC extends Tool {
       return null;
     }
   }
+  
+ 
+  private PresenceCondition getLinePresenceCondition(ConditionalBlock root, int lineNumber) {  
+      // Check if the line is within this block  
+      System.out.print("This is " +  lineNumber + " Root " + root.startLine + " " + root.endLine);
+          // Base case: if this is a leaf node (no sub-blocks), return its PC  
+    if (root.subBlocks.isEmpty()) {  
+        if (lineNumber >= root.startLine && lineNumber < root.endLine) {  
+            return root.pc;  
+        }  
+        return null;  
+    }  
+      
+    // Check if line is within any sub-block  
+    for (List<ConditionalBlock> group : root.subBlocks) {  
+        for (ConditionalBlock block : group) {  
+            // Check if line is in this sub-block's range OR  
+            // if it's between this block and the next one  
+            PresenceCondition subPC = getLinePresenceCondition(block, lineNumber);  
+            if (subPC != null) {  
+                return subPC;  
+            }  
+        }  
+    }  
+      
+    // If not in any sub-block but in this block's range,   
+    // it means this line is regular code within this conditional context  
+    if (lineNumber >= root.startLine && lineNumber < root.endLine) {  
+        return root.pc;  
+    }  
+      
+    return null;  
+}
 
   /**
    * Print an AST (or a subtree of it) in C source form.
