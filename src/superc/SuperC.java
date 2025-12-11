@@ -978,7 +978,6 @@ public class SuperC extends Tool {
         PresenceCondition linePC = getLinePresenceCondition(root, targetLine);  
         if (linePC != null) {  
             additionalInfo.put("linePresenceCondition", linePC);  
-            System.out.print("Oh yeah"+ macroTable.toString());
             List<Map<String, String>> macroValues = new ArrayList<>();  
 
             // Get macro values from MacroTable  
@@ -1018,7 +1017,7 @@ public class SuperC extends Tool {
           FileWriter fr = new FileWriter(actualOutputPath);  
           
         // Write the conditional block tree  
-          fr.write(root.toString());  
+        // fr.write(root.toString());  
           
         // Write additional info if requested  
           if (!additionalInfo.isEmpty()) {  
