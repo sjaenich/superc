@@ -406,9 +406,9 @@ public class MacroTable {
     List<Entry> all;
     List<Entry> valid;
     PresenceCondition presenceCondition;
-    System.out.print("Presence Condtion Manager " + name); 
+//    System.out.print("Presence Condtion Manager " + name);
     if (! contains(name)) return null;
-    System.out.print("Okay Version is not in");
+//    System.out.print("Okay Version is not in");
     presenceCondition = presenceConditionManager.reference();
     
     all = table.get(name);

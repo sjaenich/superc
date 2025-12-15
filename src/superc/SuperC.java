@@ -977,7 +977,7 @@ public class SuperC extends Tool {
         // Get presence condition for the specific line  
         PresenceCondition linePC = getLinePresenceCondition(root, targetLine);  
         if (linePC != null) {  
-            additionalInfo.put("linePresenceCondition", linePC);  
+            additionalInfo.put("linePresenceCondition", linePC.toSMT2().toString().replaceAll("\n", "\\\\n"));  
             List<Map<String, String>> macroValues = new ArrayList<>();  
 
             // Get macro values from MacroTable  
@@ -988,7 +988,7 @@ public class SuperC extends Tool {
             
             for (MacroTable.Entry entry : macroEntries) {  
                 Map<String, String> valueInfo = new HashMap<>();  
-                valueInfo.put("presenceCondition", entry.presenceCondition.toString());  
+                valueInfo.put("presenceCondition", entry.presenceCondition.toSMT2().replaceAll("\n", "\\\\n"));  
                 if (entry.macro.state == Macro.State.DEFINED) {  
                     if (entry.macro.isObject()) {  
                         // For object-like macros, get the replacement text  
@@ -1021,17 +1021,30 @@ public class SuperC extends Tool {
           
         // Write additional info if requested  
           if (!additionalInfo.isEmpty()) {  
-              fr.write("\n\n=== Additional Information ===\n");  
-              fr.write("Line " + targetLine + " Presence Condition: " +   
-                     additionalInfo.get("linePresenceCondition") + "\n");  
-              fr.write("Macro '" + targetMacro + "' Values:\n");  
+
+  //            fr.write("\n\n=== Additional Information ===\n");  
+
+//              fr.write("Line " + targetLine + " Presence Condition: " +   
+//                     additionalInfo.get("linePresenceCondition") + "\n");  
+//              fr.write("Macro '" + targetMacro + "' Values:\n");  
               
               @SuppressWarnings("unchecked")  
               List<Map<String, String>> values =   
                   (List<Map<String, String>>) additionalInfo.get("macroValues");  
               for (Map<String, String> value : values) {  
-                  fr.write("  Under condition " + value.get("presenceCondition") +   
-                          ": " + value.get("value") + "\n");  
+                  String dict = String.format(
+                      "{'Line': %d, 'PC': '%s', 'Macro': '%s', 'Value': '%s'}\n",
+                      targetLine,
+                      additionalInfo.get("linePresenceCondition") + " AND " + value.get("presenceCondition"),
+                      targetMacro,
+                      value.get("value")
+                      );
+                  fr.write(dict);
+
+
+
+                //                  fr.write("  Under condition " + value.get("presenceCondition") +   
+ //                         ": " + value.get("value") + "\n");  
               }  
           }  
           
@@ -1532,7 +1545,9 @@ public class SuperC extends Tool {
  
   private PresenceCondition getLinePresenceCondition(ConditionalBlock root, int lineNumber) {  
       // Check if the line is within this block  
-      System.out.print("This is " +  lineNumber + " Root " + root.startLine + " " + root.endLine);
+    //  System.out.print("This is " +  lineNumber + " Root " + root.startLine + " " + root.endLine);
+
+
           // Base case: if this is a leaf node (no sub-blocks), return its PC  
     if (root.subBlocks.isEmpty()) {  
         if (lineNumber >= root.startLine && lineNumber < root.endLine) {  
