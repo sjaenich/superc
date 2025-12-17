@@ -969,7 +969,6 @@ public class SuperC extends Tool {
       do {  
         syntax = preprocessor.next();  
       } while (syntax.kind() != Kind.EOF);
-
      
     // If specific line and macro requested, get macro values  
       Map<String, Object> additionalInfo = new HashMap<>();  
@@ -984,7 +983,6 @@ public class SuperC extends Tool {
             if (targetMacro !=null){
             List<Entry> macroEntries = macroTable.get(targetMacro, presenceConditionManager);  
             if (!(macroEntries == null)){
-
             
             for (MacroTable.Entry entry : macroEntries) {  
                 Map<String, String> valueInfo = new HashMap<>();  
@@ -1017,7 +1015,7 @@ public class SuperC extends Tool {
           FileWriter fr = new FileWriter(actualOutputPath);  
           
         // Write the conditional block tree  
-        // fr.write(root.toString());  
+        //  fr.write(root.toString());  
           
         // Write additional info if requested  
           if (!additionalInfo.isEmpty()) {  
@@ -1031,6 +1029,15 @@ public class SuperC extends Tool {
               @SuppressWarnings("unchecked")  
               List<Map<String, String>> values =   
                   (List<Map<String, String>>) additionalInfo.get("macroValues");  
+              if (values.isEmpty()){
+                  String dict = String.format(
+                      "{'Line': %d, 'PC': '%s', 'Macro': 'None', 'Value': 'None'}\n",
+                      targetLine,
+                      additionalInfo.get("linePresenceCondition"));
+                  fr.write(dict);
+
+
+              }
               for (Map<String, String> value : values) {  
                   String dict = String.format(
                       "{'Line': %d, 'PC': '%s', 'Macro': '%s', 'Value': '%s'}\n",
@@ -1545,7 +1552,6 @@ public class SuperC extends Tool {
  
   private PresenceCondition getLinePresenceCondition(ConditionalBlock root, int lineNumber) {  
       // Check if the line is within this block  
-    //  System.out.print("This is " +  lineNumber + " Root " + root.startLine + " " + root.endLine);
 
 
           // Base case: if this is a leaf node (no sub-blocks), return its PC  
