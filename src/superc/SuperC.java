@@ -23,6 +23,7 @@ import java.lang.StringBuilder;
 import java.io.File;
 import java.io.Reader;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.StringReader;
@@ -972,6 +973,7 @@ public class SuperC extends Tool {
      
     // If specific line and macro requested, get macro values  
       Map<String, Object> additionalInfo = new HashMap<>();  
+      
       if (targetLine != null) {  
         // Get presence condition for the specific line  
         PresenceCondition linePC = getLinePresenceCondition(root, targetLine);  
@@ -1007,18 +1009,44 @@ public class SuperC extends Tool {
             }
             additionalInfo.put("macroValues", macroValues);  
         }  
-      }  
+      }  else{
+        try (BufferedWriter bw =
+         new BufferedWriter(new FileWriter(actualOutputPath))) {
+            targetLine = 1;
+            PresenceCondition oldlinePC = getLinePresenceCondition(root, 1);
+            while (targetLine <= lineCount) { 
+              PresenceCondition linePC = getLinePresenceCondition(root, targetLine);
+              if (!(linePC.toString().equals(oldlinePC.toString()))){
+                
+              
+              String pcString = linePC.toSMT2().toString().replaceAll("\n", "\\\\n");
+
+              bw.write(String.format( "{'Line': %d, 'PC': '%s', 'Macro': 'None', 'Value': 'None'}",
+                        targetLine,
+                        pcString
+              ));
+              bw.newLine();
+              }
+              oldlinePC = linePC;
+              targetLine++;
+              }
+
+          } catch (IOException e) {
+           throw new RuntimeException("Failed to write output", e);
+          }
+
+      }
       
     // Write output  
       System.err.println("Writing the presence conditions to \"" + actualOutputPath + "\".");  
       try {  
-          FileWriter fr = new FileWriter(actualOutputPath);  
           
         // Write the conditional block tree  
         //  fr.write(root.toString());  
           
         // Write additional info if requested  
           if (!additionalInfo.isEmpty()) {  
+            FileWriter fr = new FileWriter(actualOutputPath);  
 
   //            fr.write("\n\n=== Additional Information ===\n");  
 
@@ -1053,9 +1081,10 @@ public class SuperC extends Tool {
                 //                  fr.write("  Under condition " + value.get("presenceCondition") +   
  //                         ": " + value.get("value") + "\n");  
               }  
-          }  
           
           fr.close();  
+          }  
+          
       } catch(Exception e) {  
           System.err.println("Exception while writing file: " + e);  
       }   
