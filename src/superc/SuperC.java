@@ -1013,19 +1013,14 @@ public class SuperC extends Tool {
          new BufferedWriter(new FileWriter(actualOutputPath))) {
             targetLine = 1;
             String oldPCKey = null;
-            Runtime runtime = Runtime.getRuntime();
             while (targetLine <= lineCount) { 
-              long totalMemory = runtime.totalMemory(); // Total memory allocated to JVM
-              long freeMemory = runtime.freeMemory();   // Free memory in JVM
-              long usedMemory = totalMemory - freeMemory;
-              System.out.println("Memory before: " + usedMemory );
 
               PresenceCondition linePC = getLinePresenceCondition(root, targetLine);
               String pcKey = Integer.toString(linePC.hashCode());
               if (!(pcKey.equals(oldPCKey))){
                 
               
-              String pcString = linePC.toSMT2();
+              String pcString = linePC.toSMT2().toString().replaceAll("\n", "\\\\n");
               System.out.println(pcString.length());
               bw.write(String.format( "{'Line': %d, 'PC': '%s', 'Macro': 'None', 'Value': 'None'}",
                         targetLine,
@@ -1038,11 +1033,6 @@ public class SuperC extends Tool {
               targetLine = targetLine + 50;
               linePC = null;
               System.gc();
-              totalMemory = runtime.totalMemory(); // Total memory allocated to JVM
-              freeMemory = runtime.freeMemory();   // Free memory in JVM
-              usedMemory = totalMemory - freeMemory;
-              System.out.println("Memory after: " + usedMemory );
-
               }
 
           } catch (IOException e) {
