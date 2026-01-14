@@ -1184,8 +1184,9 @@ public class PresenceConditionManager {
 
     public String toSMT2() {
       BoolExpr z3rep = bddToZ3(ctx);
+      BoolExpr simplified = (BoolExpr) z3rep.simplify();
       Solver s = ctx.mkSolver();
-      s.add(z3rep);
+      s.add(simplified);
       String rep = s.toString();
 
       return rep;

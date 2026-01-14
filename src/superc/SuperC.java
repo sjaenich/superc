@@ -980,12 +980,11 @@ public class SuperC extends Tool {
         if (linePC != null) {  
             additionalInfo.put("linePresenceCondition", linePC.toSMT2().toString().replaceAll("\n", "\\\\n"));  
             List<Map<String, String>> macroValues = new ArrayList<>();  
-
             // Get macro values from MacroTable  
             if (targetMacro !=null){
             List<Entry> macroEntries = macroTable.get(targetMacro, presenceConditionManager);  
             if (!(macroEntries == null)){
-            
+            System.out.println("macro is not null");
             for (MacroTable.Entry entry : macroEntries) {  
                 Map<String, String> valueInfo = new HashMap<>();  
                 valueInfo.put("presenceCondition", entry.presenceCondition.toSMT2().replaceAll("\n", "\\\\n"));  
@@ -1013,22 +1012,37 @@ public class SuperC extends Tool {
         try (BufferedWriter bw =
          new BufferedWriter(new FileWriter(actualOutputPath))) {
             targetLine = 1;
-            PresenceCondition oldlinePC = getLinePresenceCondition(root, 1);
+            String oldPCKey = null;
+            Runtime runtime = Runtime.getRuntime();
             while (targetLine <= lineCount) { 
+              long totalMemory = runtime.totalMemory(); // Total memory allocated to JVM
+              long freeMemory = runtime.freeMemory();   // Free memory in JVM
+              long usedMemory = totalMemory - freeMemory;
+              System.out.println("Memory before: " + usedMemory );
+
               PresenceCondition linePC = getLinePresenceCondition(root, targetLine);
-              if (!(linePC.toString().equals(oldlinePC.toString()))){
+              String pcKey = Integer.toString(linePC.hashCode());
+              if (!(pcKey.equals(oldPCKey))){
                 
               
-              String pcString = linePC.toSMT2().toString().replaceAll("\n", "\\\\n");
-
+              String pcString = linePC.toSMT2();
+              System.out.println(pcString.length());
               bw.write(String.format( "{'Line': %d, 'PC': '%s', 'Macro': 'None', 'Value': 'None'}",
                         targetLine,
                         pcString
               ));
               bw.newLine();
+              pcString = null;
               }
-              oldlinePC = linePC;
-              targetLine++;
+              oldPCKey = pcKey;
+              targetLine = targetLine + 50;
+              linePC = null;
+              System.gc();
+              totalMemory = runtime.totalMemory(); // Total memory allocated to JVM
+              freeMemory = runtime.freeMemory();   // Free memory in JVM
+              usedMemory = totalMemory - freeMemory;
+              System.out.println("Memory after: " + usedMemory );
+
               }
 
           } catch (IOException e) {
