@@ -1016,12 +1016,13 @@ public class SuperC extends Tool {
             while (targetLine <= lineCount) { 
 
               PresenceCondition linePC = getLinePresenceCondition(root, targetLine);
+              
               String pcKey = Integer.toString(linePC.hashCode());
               if (!(pcKey.equals(oldPCKey))){
                 
               
               String pcString = linePC.toSMT2().toString().replaceAll("\n", "\\\\n");
-              System.out.println(pcString.length());
+              
               bw.write(String.format( "{'Line': %d, 'PC': '%s', 'Macro': 'None', 'Value': 'None'}",
                         targetLine,
                         pcString
@@ -1030,7 +1031,7 @@ public class SuperC extends Tool {
               pcString = null;
               }
               oldPCKey = pcKey;
-              targetLine = targetLine + 50;
+              targetLine++;
               linePC = null;
               System.gc();
               }
@@ -1593,8 +1594,7 @@ public class SuperC extends Tool {
             return root.pc;  
         }  
         return null;  
-    }  
-      
+    }
     // Check if line is within any sub-block  
     for (List<ConditionalBlock> group : root.subBlocks) {  
         for (ConditionalBlock block : group) {  
