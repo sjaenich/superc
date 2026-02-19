@@ -345,8 +345,8 @@ public class Preprocessor implements Iterator<Syntax> {
   protected String holdMacroTableRestrictPrefix = null;
 
   protected void disableConfigurationAwareness() {
-    holdMacroTableRestrictPrefix = macroTable.getRestrictPrefix();
-    holdEvaluatorRestrictPrefix = evaluator.getRestrictPrefix();
+    holdMacroTableRestrictPrefix = String.join(",", macroTable.getRestrictPrefix());
+    holdEvaluatorRestrictPrefix = String.join(",", evaluator.getRestrictPrefix());
     evaluator.restrictPrefix("0(){}THISSTRINGSHOULDNEVERBEAPREFIXTOAMACRO");
     macroTable.restrictPrefix("0(){}THISSTRINGSHOULDNEVERBEAPREFIXTOAMACRO");
     configurationAwarenessOff = true;
@@ -386,11 +386,11 @@ public class Preprocessor implements Iterator<Syntax> {
     // Get the next token from the source file or the token buffer.
     Syntax syntax = getNext();
 
-    // System.err.println("getNext: " + syntax);
-    //System.out.print("MacroTable: " + this.macroTable.toString());
-    // System.err.println("PASTE_LEFT: " + syntax.testFlag(PASTE_LEFT));
-    // System.err.println("PREV_WHITE: " + syntax.testFlag(PREV_WHITE));
-    // System.err.println("prescanning: " + prescanning);
+  //   System.err.println("getNext: " + syntax);
+  //   System.out.print("MacroTable: " + this.macroTable.toString());
+  //   System.err.println("PASTE_LEFT: " + syntax.testFlag(PASTE_LEFT));
+  //   System.err.println("PREV_WHITE: " + syntax.testFlag(PREV_WHITE));
+  //   System.err.println("prescanning: " + prescanning);
   //  System.err.println("presenceCondition: " + presenceConditionManager.reference());
 
     boolean isValid;

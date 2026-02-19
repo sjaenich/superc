@@ -19,7 +19,9 @@
 package superc;
 
 import java.lang.StringBuilder;
-
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.io.File;
 import java.io.Reader;
 import java.io.BufferedReader;
@@ -404,6 +406,9 @@ public class SuperC extends Tool {
            + "configuration variables, but keep them free in the macro table").
       word("restrictFreeToPrefix", "restrictFreeToPrefix", false,
            "Restricts free macros to those that have the given prefix").
+      word("restrictFreeToHeader", "restrictFreeToHeader", false,  
+            "Restrict free macros to those defined in the given header file").
+  
       bool("singleConfigSysheaders", "singleConfigSysheaders", false,
            "Disables configuration-awareness inside of system headers.").
 
@@ -570,6 +575,53 @@ public class SuperC extends Tool {
       ;
   }
   
+  private List<String> extractMacroNamesFromHeader(Path headerPath) throws IOException {  
+      List<String> names = new ArrayList<>();  
+      try (BufferedReader br = Files.newBufferedReader(headerPath)) {  
+        String line;  
+        while ((line = br.readLine()) != null) {  
+          String trimmed = line.trim();  
+          // Simple heuristic: lines starting with #define followed by an identifier  
+          if (trimmed.startsWith("#define ")) {  
+            String[] parts = trimmed.split("\\s+");  
+            if (parts.length >= 2) {  
+              String name = parts[1];  
+              // Exclude function-like macros with an opening paren  
+              if (!name.endsWith("(")) {  
+                names.add(name);  
+              }  
+            }  
+          }
+        // Extract commented #undef macros  
+          // Handle line comments: // #undef MACRO  
+            if (trimmed.startsWith("//")) {  
+              String uncommented = trimmed.substring(2).trim();  
+              if (uncommented.startsWith("#undef ")) {  
+                String[] parts = uncommented.split("\\s+");  
+                if (parts.length >= 2) {  
+                  names.add(parts[1]);  
+              }   
+              }   
+            }  
+              
+            // Handle block comments: /* #undef MACRO */  
+            if (trimmed.startsWith("/*") && trimmed.endsWith("*/")) {  
+              String uncommented = trimmed.substring(2, trimmed.length() - 2).trim();  
+              if (uncommented.startsWith("#undef ")) {  
+                String[] parts = uncommented.split("\\s+");  
+                if (parts.length >= 2) {  
+                  names.add(parts[1]);  
+                }  
+              }  
+            }  
+      
+      
+        }  
+      }  
+      return names;  
+    }
+
+
   /**
    * Prepare for file processing.  Build header search paths.
    * Include command-line headers. Process command-line and built-in macros.
@@ -835,6 +887,24 @@ public class SuperC extends Tool {
       macroTable.restrictPrefix(runtime.getString("restrictFreeToPrefix"));
       conditionEvaluator.restrictPrefix(runtime.getString("restrictFreeToPrefix"));
     }
+
+    if (null != runtime.getString("restrictFreeToHeader")) {  
+      try {  
+        Path headerPath = Paths.get(runtime.getString("restrictFreeToHeader"));  
+        List<String> macroNames = extractMacroNamesFromHeader(headerPath);  
+        if (!macroNames.isEmpty()) {  
+          String prefixes = String.join(",", macroNames);  
+          macroTable.restrictPrefix(prefixes);  
+          conditionEvaluator.restrictPrefix(prefixes);  
+        }  
+      } catch (IOException e) {  
+        System.err.println("Warning: Could not process header file for restrictFreeToHeader: "   
+            + runtime.getString("restrictFreeToHeader"));  
+      }  
+    }
+
+
+
 
     if (null != runtime.getString("restrictConfigToPrefix")) {
       // let macros be free!  only restrict them when encountered in a

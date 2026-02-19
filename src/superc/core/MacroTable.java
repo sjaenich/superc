@@ -26,6 +26,9 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 
+import java.util.Arrays;  
+import java.util.List;
+
 import superc.core.Syntax.LanguageTag;
 import superc.core.Syntax.Layout;
 import superc.core.Syntax.Language;
@@ -75,6 +78,9 @@ public class MacroTable {
   /** The restricted prefix. */
   private String prefix = null;
 
+  private List<String> restrictPrefixes = null;
+
+
   /** Make a new empty macro table */
   public MacroTable(TokenCreator tokenCreator) {
     this.tokenCreator = tokenCreator;
@@ -115,14 +121,24 @@ public class MacroTable {
    * @param prefix Give a string to turn restricted prefix on.  Give
    * null to turn it off.
    */
-  public void restrictPrefix(String prefix) {
-    if (null == prefix) {
+  // public void restrictPrefix(String prefix) {
+  //   if (null == prefix) {
+  //     restrictPrefix = false;
+  //     this.prefix = null;
+  //   } else {
+  //     restrictPrefix = true;
+  //     this.prefix = prefix;
+  //   }
+  // }
+
+  public void restrictPrefix(String prefixes) {
+    if (null == prefixes) {
       restrictPrefix = false;
-      this.prefix = null;
+      this.restrictPrefixes = null;
     } else {
       restrictPrefix = true;
-      this.prefix = prefix;
-    }
+      this.restrictPrefixes = Arrays.asList(prefixes.split(","));
+    }  
   }
   
   /**
@@ -130,9 +146,17 @@ public class MacroTable {
    *
    * @return The macro prefix restriction or null if none.
    */
-  public String getRestrictPrefix() {
-    return prefix;
+  public List<String> getRestrictPrefix() {
+    return restrictPrefixes;
   }
+
+   private boolean matchesAnyPrefix(String parameter) {  
+    for (String p : restrictPrefixes) {  
+      if (parameter.startsWith(p)) return true;  
+    }  
+    return false; 
+  }  
+
 
   /** Define a macro under a given presenceCondition.  This function will
    * ensure that all conditions are disjoint and that there are no more
@@ -212,7 +236,7 @@ public class MacroTable {
         PresenceCondition negation;
         
         negation = presenceCondition.not();
-        if (restrictPrefix && !name.startsWith(prefix)) {
+        if (restrictPrefix && !matchesAnyPrefix(name)) {
           // Assume the macro is undefined.
           defs.add(new Entry(Macro.undefined, negation));
         } else {

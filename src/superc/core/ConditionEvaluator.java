@@ -21,6 +21,7 @@ package superc.core;
 import java.lang.Iterable;
 
 import java.util.List;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -84,6 +85,9 @@ public class ConditionEvaluator {
   /** Restrict free macros to the given prefix. */
   private boolean enableRestrictPrefix = false;
 
+  /** Restrict free macros to a given List */
+  private List<String> restrictPrefixes = null;  
+
   /** The prefix to restrict free macros to. */
   private String restrictPrefix = null;
   
@@ -116,24 +120,49 @@ public class ConditionEvaluator {
    *
    * @param The prefix to restrict or null for no restriction.
    */
-  public void restrictPrefix(String prefix) {
-    if (null == prefix) {
+  // public void restrictPrefix(String prefix) {
+  //   if (null == prefix) {
+  //     enableRestrictPrefix = false;
+  //     this.restrictPrefix = null;
+  //   } else {
+  //     enableRestrictPrefix = true;
+  //     this.restrictPrefix = prefix;
+  //   }
+  // }
+
+  public void restrictPrefix(String prefixes) {
+    if (null == prefixes) {
       enableRestrictPrefix = false;
-      this.restrictPrefix = null;
+      this.restrictPrefixes = null;
     } else {
       enableRestrictPrefix = true;
-      this.restrictPrefix = prefix;
+      this.restrictPrefixes = Arrays.asList(prefixes.split(","));
     }
   }
+
+  private boolean matchesAnyPrefix(String parameter) {  
+    for (String p : restrictPrefixes) {  
+      if (parameter.startsWith(p))   {return true; } 
+    }  
+    return false; 
+  }
+
+
 
   /**
    * Get the current macro prefix restriction.
    *
    * @return The macro prefix restriction or null if none.
    */
-  public String getRestrictPrefix() {
-    return restrictPrefix;
+  // public String getRestrictPrefix() {
+    // return restrictPrefix;
+  // }
+  
+  public List<String> getRestrictPrefix() {  
+    return restrictPrefixes;  
   }
+
+
 
   /**
    * Create a new condition evaluator.
@@ -750,7 +779,8 @@ public class ConditionEvaluator {
                               createDefinedVariable(parameter));
             }
 
-            if (enableRestrictPrefix && ! parameter.startsWith(restrictPrefix)) {
+            // if (enableRestrictPrefix && ! parameter.startsWith(restrictPrefix)) {
+            if (enableRestrictPrefix && ! matchesAnyPrefix(parameter)) { 
               // System.err.println("restricting " + parameter + " to undefined");
               return B.zero();
             }
